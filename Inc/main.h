@@ -58,12 +58,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define BTN_Pin_Pin GPIO_PIN_13
-#define BTN_Pin_GPIO_Port GPIOC
-#define LED_GRN_Pin_Pin GPIO_PIN_3
-#define LED_GRN_Pin_GPIO_Port GPIOB
-#define LED_RED_Pin_Pin GPIO_PIN_1
-#define LED_RED_Pin_GPIO_Port GPIOC
+#define BTN_Pin GPIO_PIN_13
+#define BTN_GPIO_Port GPIOC
+#define LED_GRN_Pin GPIO_PIN_3
+#define LED_GRN_GPIO_Port GPIOB
+#define LED_RED_Pin GPIO_PIN_1
+#define LED_RED_GPIO_Port GPIOC
 /* USER CODE BEGIN Private defines */
 
 #define BLrequest 0x20004FF4;

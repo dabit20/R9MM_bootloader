@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -73,7 +74,7 @@ static void MX_USART1_UART_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  int i, ctr;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -106,7 +107,7 @@ int main(void)
 
   /* If the button is pressed, then jump to the user application,
    * otherwise stay in the bootloader. */
-  uart_transmit_str((uint8_t*)"Send 'b' or hold down button to begin bootloader\n\r");
+  uart_transmit_str((uint8_t*)"Send '2bl', 'bbb' or hold down button to begin bootloader\n\r");
 
   HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, 1);
   HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, 0);
@@ -114,31 +115,44 @@ int main(void)
   HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, 1);
   HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, 1);
 
-  uint8_t header[5];
+  uint8_t header[6] = {0,0,0,0,0,0};
 
     uart_receive(header, 5u);
 
     bool BLrequested = false;
-
-    for(int i = 0; i< 5; i++){
-      if((header[i] == 0x62)){
-      	BLrequested = true;
-      }
+    /* Search for magic strings */
+    if (strstr((char *)header, "2bl") || strstr((char *)header, "bbb")) {
+    	BLrequested = true;
     }
 
-    HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, 0);
-    HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, 0);
-
-    if(HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin)==0)
+    /* Read button a few times to make sure we pressed it and we are not sampling noise */
+    ctr = 0;
+    for (i=0;i<16;i++) {
+    	/* Button is active low */
+    	if (HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin)==GPIO_PIN_RESET)
+    		ctr++;
+    	HAL_Delay(10);
+    }
+    /* if >75% of our samples is 'pressed', we assume it indeed was */
+    if(ctr > 12)
     {
   	  uart_transmit_str((uint8_t*)"Detected button press\n\r");
   	  BLrequested = true;
     }
 
-    if(BLrequested == false){
-  	  uart_transmit_str((uint8_t*)"Jumping to user application...\n\r");
-  	  flash_jump_to_app();
+    if (BLrequested==true) {
+    	/* BL was requested, GRN led on */
+    	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, 0);
+    	HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, 1);
+    } else {
+    	/* BL was not requested, RED led on. Use app will soon use the LED's for it's own purpose,
+    	 * thus if RED stays on there is an error */
+    	HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, 1);
+    	HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, 0);
+    	uart_transmit_str((uint8_t*)"Jumping to user application...\n\r");
+    	flash_jump_to_app();
     }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -190,7 +204,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -245,30 +259,30 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GRN_Pin_GPIO_Port, LED_GRN_Pin_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_GRN_GPIO_Port, LED_GRN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_RED_Pin_GPIO_Port, LED_RED_Pin_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : BTN_Pin_Pin */
-  GPIO_InitStruct.Pin = BTN_Pin_Pin;
+  /*Configure GPIO pin : BTN_Pin */
+  GPIO_InitStruct.Pin = BTN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(BTN_Pin_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(BTN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED_GRN_Pin_Pin */
-  GPIO_InitStruct.Pin = LED_GRN_Pin_Pin;
+  /*Configure GPIO pin : LED_GRN_Pin */
+  GPIO_InitStruct.Pin = LED_GRN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_GRN_Pin_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(LED_GRN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED_RED_Pin_Pin */
-  GPIO_InitStruct.Pin = LED_RED_Pin_Pin;
+  /*Configure GPIO pin : LED_RED_Pin */
+  GPIO_InitStruct.Pin = LED_RED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_RED_Pin_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(LED_RED_GPIO_Port, &GPIO_InitStruct);
 
 }
 

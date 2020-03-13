@@ -181,19 +181,6 @@ static xmodem_status xmodem_handle_packet(uint8_t header)
   /* We calculate it too. */
   uint16_t crc_calculated = xmodem_calc_crc(&received_data[X_PACKET_DATA_INDEX], size);
 
-  /* If it is the first packet, then erase the memory. */
-  if (false == x_first_packet_received)
-  {
-    if (FLASH_OK == flash_erase(FLASH_APP_START_ADDRESS))
-    {
-      x_first_packet_received = true;
-    }
-    else
-    {
-      status |= X_ERROR_FLASH;
-    }
-  }
-
   /* Error handling and flashing. */
   if (X_OK == status)
   {
@@ -202,27 +189,41 @@ static xmodem_status xmodem_handle_packet(uint8_t header)
       /* UART error. */
       status |= X_ERROR_UART;
     }
-    else if (xmodem_packet_number != received_data[X_PACKET_NUMBER_INDEX])
+    if (xmodem_packet_number != received_data[X_PACKET_NUMBER_INDEX])
     {
       /* Packet number counter mismatch. */
       status |= X_ERROR_NUMBER;
     }
-    else if (255u != (received_data[X_PACKET_NUMBER_INDEX] +  received_data[X_PACKET_NUMBER_COMPLEMENT_INDEX]))
+    if (255u != (received_data[X_PACKET_NUMBER_INDEX] +  received_data[X_PACKET_NUMBER_COMPLEMENT_INDEX]))
     {
       /* The sum of the packet number and packet number complement aren't 255. */
       /* The sum always has to be 255. */
       status |= X_ERROR_NUMBER;
     }
-    else if (crc_calculated != crc_received)
+    if (crc_calculated != crc_received)
     {
       /* The calculated and received CRC are different. */
       status |= X_ERROR_CRC;
     }
-    /* Do the actual flashing. */
-    else if (FLASH_OK != flash_write(xmodem_actual_flash_address, (uint32_t*)&received_data[X_PACKET_DATA_INDEX], (uint32_t)size/4u))
+    /* If there is no error yet, and this is the first chunk, erase flash. */
+    if (X_OK == status && xmodem_actual_flash_address == FLASH_APP_START_ADDRESS)
     {
-      /* Flashing error. */
-      status |= X_ERROR_FLASH;
+    	/* We seem to have valid data and we can flash.
+    	 * Is this the first chunk that needs flashing? If so, erase the flash first
+    	 */
+    	if (FLASH_OK != flash_erase(FLASH_APP_START_ADDRESS))
+    		status |= X_ERROR_FLASH;
+    	/* indicate first packet received so we stop spamming the sender with 'C' */
+    	x_first_packet_received = true;
+    }
+    /* Still no error? Write data to flash then */
+    if (X_OK == status)
+    {
+    	if (FLASH_OK != flash_write(xmodem_actual_flash_address, (uint32_t*)&received_data[X_PACKET_DATA_INDEX], (uint32_t)size/4u))
+		{
+		  /* Flashing error. */
+		  status |= X_ERROR_FLASH;
+		}
     }
   }
 
